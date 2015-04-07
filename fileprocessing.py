@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 #coding=utf-8
 
+#global parameter
+POSITIVE_LABEL = 1
+NEGATIVE_LABEL = -1
+
 def tokenize(sentence , ngram) :
     words = sentence.split()
     cnt = len(words)
@@ -29,6 +33,24 @@ def vectorize_docs(f_obj , dic , r , ngram) :
                 line_vector.append((i,r[i-1])) # f = r * f_ori 
         f_vector.append(line_vector)
     return f_vector
+
+
+def ready_SVM_data(labels , vecs ) :
+    '''
+    input >  labels : list for labels of every class
+             vecs   : vectors of every class
+    return > Y,X : labels and vectors for every case !
+
+    pick it !
+    '''
+    Y = []
+    X = []
+    for label , f_vec in zip(labels , vecs) :
+        for x in f_vec :
+            Y.append(label)
+            X.append({ idx:val for idx,val in x})
+    return Y , X
+
 
 if __name__ == "__main__" :
     dic = {

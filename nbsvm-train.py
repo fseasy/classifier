@@ -7,10 +7,15 @@ import argparse
 import numpy as np
 from collections import Counter
 import logging
+try :
+    import cPickle as pickle
+except :
+    import pickle
 
 from fileprocessing import *
 
 logging.basicConfig(level=logging.INFO)
+
 
 def counting(f_obj , ngram) :
     '''
@@ -73,21 +78,50 @@ def compute_logcount_ratio(dic , pos_con , neg_con , alpha=1) :
     r = np.log((p_v/p_v_1_norm)/(q_v/q_v_1_norm))
     return r
 
-def ready_train_data(labels , vecs ) :
-    Y = []
-    X = []
-    for label , f_vec in zip(labels , vecs) :
-        for x in f_vec :
-            Y.append(label)
-            X.append({ idx:val for idx,val in x})
-    return Y , X
-
 def train_using_liblinear(Y , X , options) :
+    '''
+    input > Y : labels 
+            X : document vectors in sparse format , ie : [{1:3,5:10},{...}]
+            options : libLinear train options
+    return > m , model of SVM
+
+    just call SVM train function
+    '''
     m = train(Y,X,options)
     return m
 
+def compute_NBSVM_param(m , beta=0.25) :
+    '''
+    intput > m : model of libLinear
+             beta : smoothing parameter
+    return > w : weight vector
+             b : bias
+    w' = (1 - beta)*w_mean + beta*w
+    where w_mean = norm1(w) / size(V) , V is the feature space
+    '''
+    dimension = m.get_nr_feature()
+    labels = m.get_labels()
+    #we need get the label idx for positive label
+    label_idx = 0 
+    for i in range(0,len(labels)) :
+        if labels[i] == POSITIVE_LABEL :
+            label_idx = i
+            break
 
+    w , b = m.get_decfun(label_idx)
+    w = np.array(w)
+    w_norm1 = abs(w).sum()
+    w_mean = w_norm1 / dimension 
+    w_new = (1 - beta) * w_mean * np.ones(dimension) + beta * w 
+    return list(w_new) , b
 
+def output_model(w,b,dic,r,ngram,o_obj) :
+    pickle.dump(w , o_obj)
+    pickle.dump(b , o_obj)
+    pickle.dump(dic , o_obj)
+    pickle.dump(r , o_obj)
+    pickle.dump(ngram , o_obj)
+    
 
 def main(postrain , negtrain , ngram , out) :
     
@@ -114,18 +148,25 @@ def main(postrain , negtrain , ngram , out) :
     neg_f_vecs = vectorize_docs(negtrain , dic , r , ngram)
     #print pos_f_vecs
     #print neg_f_vecs
-    Y , X = ready_train_data([1,-1],[pos_f_vecs,neg_f_vecs])
+    Y , X = ready_SVM_data([POSITIVE_LABEL,NEGATIVE_LABEL],[pos_f_vecs,neg_f_vecs])
     print Y
     print X
     logging.info("generate model using libLinear")
     
     m = train_using_liblinear(Y,X,"-s 1 -c 1") # -s 1 : using L2-resularized L2-loss SVM ; -c 1 : C = 1
     logging.info("compute w and b")
-    
-    #logging.info("output model")
+    w , b = compute_NBSVM_param(m)
 
+    logging.info("output model")
+    
+    output_model(w , b , dic , r , ngram , out)
     postrain.close()
     negtrain.close()
+    out.close()
+
+    logging.info("FINISHED")
+
+
 if __name__ == "__main__" :
     '''
     usage:
@@ -137,7 +178,7 @@ if __name__ == "__main__" :
     parser.add_argument('--postrain',help="path to positive train data",type=argparse.FileType('r'),default="data/postrain")
     parser.add_argument('--negtrain',help="path to negtive train data",type=argparse.FileType('r'),default="data/negtrain")
     parser.add_argument('--ngram',help="1 or 2 to decide using the unigram or bigram",type=int,default="2",choices=[1,2])
-    parser.add_argument('--out',help="path to model file ",default="")
+    parser.add_argument('--out',help="path to model file ",type=argparse.FileType('w') , default="out.model")
     parser.add_argument('--liblinear',help="" , default="/home/xx/bin/liblinear-1.96/python")
     args = vars(parser.parse_args())
     if not os.path.exists(args['liblinear']) :
