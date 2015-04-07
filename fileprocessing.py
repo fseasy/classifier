@@ -41,7 +41,7 @@ def ready_SVM_data(labels , vecs ) :
              vecs   : vectors of every class
     return > Y,X : labels and vectors for every case !
 
-    pick it !
+    pack it !
     '''
     Y = []
     X = []
@@ -51,6 +51,17 @@ def ready_SVM_data(labels , vecs ) :
             X.append({ idx:val for idx,val in x})
     return Y , X
 
+def save_SVM_data(Y,X,dimension,file_path) :
+    f = open(file_path,'w')
+    sample_line = ['%d:%f' %(i,0.0) for i in range(1,dimension+1)]
+    for y,x in zip(Y,X) :
+        line = [str(y)] + sample_line
+        for idx in x :
+            #line.append("%d:%f" %(idx,x[idx]))
+            line[idx] = "%d:%f" %(idx,x[idx])
+        line = ' '.join(line) + '\n'
+        f.write(line)
+    f.close()
 
 if __name__ == "__main__" :
     dic = {

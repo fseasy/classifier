@@ -87,7 +87,7 @@ def train_using_liblinear(Y , X , options) :
 
     just call SVM train function
     '''
-    m = train(Y,X,options)
+    m = linearutil.train(Y,X,options)
     return m
 
 def compute_NBSVM_param(m , beta=0.25) :
@@ -121,45 +121,63 @@ def output_model(w,b,dic,r,ngram,o_obj) :
     pickle.dump(dic , o_obj)
     pickle.dump(r , o_obj)
     pickle.dump(ngram , o_obj)
-    
 
-def main(postrain , negtrain , ngram , out) :
-    
-    #print postrain
-    #print negtrain
-    #print ngram
-    #print out
+def debug_output(is_debug,des,obj) :
+    if is_debug :
+        print "%s%s%s" %('-'*10,des,'-'*10)
+        print obj
+def debug_save_SVM_data(is_debug,Y,X,dimension,basepath) :
+    if is_debug :
+        fpath = os.path.join(basepath , 'train.debug.svm.data')
+        save_SVM_data(Y,X,dimension,fpath)
+        print 'SVM data has stored at "%s"' %(fpath)
+
+def debug_save_SVM_model(is_debug,m,basepath) :
+    if is_debug :
+        fpath = os.path.join(basepath , 'train.debug.svm.model')
+        linearutil.save_model(fpath,m)
+        print 'SVM model has stored at "%s"' %(fpath)
+
+def main(postrain , negtrain , ngram , out , is_debug) :
+    '''
+    input > postrain,negtrain,out : file object for positive train data , negative train data and output model path
+            gram ; int value , 1 or 2 , decide using unigram or both unigram and bigram
+    '''
     logging.info("counting")
     pos_con = counting(postrain , ngram)
     neg_con = counting(negtrain , ngram)
-    #print pos_con
-    #print neg_con
     logging.info("abstract features")
     dic = abstract_features(pos_con , neg_con)
-    print dic
+    
+    debug_output(is_debug,"feature dict",dic) 
+
     logging.info("compute log-count ratio")
     r = compute_logcount_ratio(dic , pos_con , neg_con )
-    print r
+    
+    debug_output(is_debug,"log-count ratio",r)
     
     logging.info("generate training data in libSVM format")
     postrain.seek(0,os.SEEK_SET) # the file has been read to the end , so move to the head
     negtrain.seek(0,os.SEEK_SET)
     pos_f_vecs = vectorize_docs(postrain , dic , r , ngram)
     neg_f_vecs = vectorize_docs(negtrain , dic , r , ngram)
-    #print pos_f_vecs
-    #print neg_f_vecs
     Y , X = ready_SVM_data([POSITIVE_LABEL,NEGATIVE_LABEL],[pos_f_vecs,neg_f_vecs])
-    print Y
-    print X
-    logging.info("generate model using libLinear")
     
+    debug_save_SVM_data(is_debug,Y,X,len(dic),os.path.split(postrain.name)[0])
+
+    logging.info("generate model using libLinear")
     m = train_using_liblinear(Y,X,"-s 1 -c 1") # -s 1 : using L2-resularized L2-loss SVM ; -c 1 : C = 1
+    
+    debug_save_SVM_model(is_debug,m,os.path.split(postrain.name)[0])
+
     logging.info("compute w and b")
     w , b = compute_NBSVM_param(m)
+    
+    debug_output(is_debug,"w and b",[w,b])
 
     logging.info("output model")
-    
     output_model(w , b , dic , r , ngram , out)
+    
     postrain.close()
     negtrain.close()
     out.close()
@@ -179,12 +197,13 @@ if __name__ == "__main__" :
     parser.add_argument('--negtrain',help="path to negtive train data",type=argparse.FileType('r'),default="data/negtrain")
     parser.add_argument('--ngram',help="1 or 2 to decide using the unigram or bigram",type=int,default="2",choices=[1,2])
     parser.add_argument('--out',help="path to model file ",type=argparse.FileType('w') , default="out.model")
-    parser.add_argument('--liblinear',help="" , default="/home/xx/bin/liblinear-1.96/python")
+    parser.add_argument('--liblinear',help="path to liblinear" , default="/home/xx/bin/liblinear-1.96/python")
+    parser.add_argument('--DEBUG',dest="is_debug",help="weather open the DEBUG model" , action="store_true")
     args = vars(parser.parse_args())
     if not os.path.exists(args['liblinear']) :
         raise Exception
     sys.path.append(args['liblinear'])
     args.pop('liblinear') # the follow does't need it any more , delete it for a call
-    from liblinearutil import * # it may be not good  - -
+    import liblinearutil as linearutil # it may be not good  - -
 
     main(**args)
