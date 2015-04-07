@@ -29,6 +29,66 @@ def counting(f_obj , ngram) :
         tokens_df_con.update(tokens)
     return tokens_df_con
 
+def abstract_features(poscon , negcon) :
+    '''
+    input > poscon : positive token Container 
+            negcon : negative token Container
+    output > dict , key-val as : token:index ; index from 1 to len(dict)
+    '''
+    keys = list(set(poscon.keys() + negcon.keys()))
+    dic = {}
+    idx = 1
+    for k in keys :
+        dic[k] = idx 
+        idx += 1
+    return dic
+
+def compute_logcount_ratio(dic , pos_con , neg_con , alpha=1) :
+    '''
+    input > dic : feature dict
+            pos_con : positive set DF container
+            neg_con : negative set DF container
+            alpha : smoothing parameter
+    return > r , vector of log-count ratio
+    '''
+    vector_d = len(dic)
+    alpha = np.ones(vector_d) * alpha
+    p_v = np.zeros(vector_d)
+    q_v = np.zeros(vector_d)
+    # calculate p , q . 
+    # p = sum(f_i) where f_i is the document vector belongs to positive set , and f_i_j is the binarized value , so sum(f_i_j) for all i equal to the occurence of feature f_j at the positive set . that is , the DF of the f_j , equal to pos_con[f_j]
+    for f in pos_con :
+        f_idx = dic[f] - 1
+        f_df = pos_con[f]
+        p_v[f_idx] = f_df
+    for f in neg_con :
+        q_v[dic[f] - 1] = neg_con[f]
+    # add the smoothing parameter
+    p_v = p_v + alpha ;
+    q_v = q_v + alpha ;
+    # calc the normalization num by 1st norm
+    p_v_1_norm = abs(p_v).sum()
+    q_v_1_norm = abs(q_v).sum()
+    #calc log-cont ratio
+    r = np.log((p_v/p_v_1_norm)/(q_v/q_v_1_norm))
+    return r
+
+def ready_train_data(labels , vecs ) :
+    Y = []
+    X = []
+    for label , f_vec in zip(labels , vecs) :
+        for x in f_vec :
+            Y.append(label)
+            X.append({ idx:val for idx,val in x})
+    return Y , X
+
+def train_using_liblinear(Y , X , options) :
+    m = train(Y,X,options)
+    return m
+
+
+
+
 def main(postrain , negtrain , ngram , out) :
     
     #print postrain
@@ -38,13 +98,30 @@ def main(postrain , negtrain , ngram , out) :
     logging.info("counting")
     pos_con = counting(postrain , ngram)
     neg_con = counting(negtrain , ngram)
-    print pos_con
-    print neg_con
-    #logging.info("abstract features")
-    #logging.info("compute log-count ratio")
-    #logging.info("generate training data in libSVM format")
-    #logging.info("generate model using libLinear")
-    #logging.info("compute w and b")
+    #print pos_con
+    #print neg_con
+    logging.info("abstract features")
+    dic = abstract_features(pos_con , neg_con)
+    print dic
+    logging.info("compute log-count ratio")
+    r = compute_logcount_ratio(dic , pos_con , neg_con )
+    print r
+    
+    logging.info("generate training data in libSVM format")
+    postrain.seek(0,os.SEEK_SET) # the file has been read to the end , so move to the head
+    negtrain.seek(0,os.SEEK_SET)
+    pos_f_vecs = vectorize_docs(postrain , dic , r , ngram)
+    neg_f_vecs = vectorize_docs(negtrain , dic , r , ngram)
+    #print pos_f_vecs
+    #print neg_f_vecs
+    Y , X = ready_train_data([1,-1],[pos_f_vecs,neg_f_vecs])
+    print Y
+    print X
+    logging.info("generate model using libLinear")
+    
+    m = train_using_liblinear(Y,X,"-s 1 -c 1") # -s 1 : using L2-resularized L2-loss SVM ; -c 1 : C = 1
+    logging.info("compute w and b")
+    
     #logging.info("output model")
 
     postrain.close()
@@ -61,6 +138,12 @@ if __name__ == "__main__" :
     parser.add_argument('--negtrain',help="path to negtive train data",type=argparse.FileType('r'),default="data/negtrain")
     parser.add_argument('--ngram',help="1 or 2 to decide using the unigram or bigram",type=int,default="2",choices=[1,2])
     parser.add_argument('--out',help="path to model file ",default="")
+    parser.add_argument('--liblinear',help="" , default="/home/xx/bin/liblinear-1.96/python")
     args = vars(parser.parse_args())
-    
+    if not os.path.exists(args['liblinear']) :
+        raise Exception
+    sys.path.append(args['liblinear'])
+    args.pop('liblinear') # the follow does't need it any more , delete it for a call
+    from liblinearutil import * # it may be not good  - -
+
     main(**args)
