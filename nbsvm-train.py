@@ -8,20 +8,44 @@ import numpy as np
 from collections import Counter
 import logging
 
+from fileprocessing import *
+
 logging.basicConfig(level=logging.INFO)
+
+def counting(f_obj , ngram) :
+    '''
+    input >  f_obj : file obj for read , every line represent a doc
+             ngram : 1 or 2 stands for using unigram or bigram as the feature
+    return > a Counter ,  storing all the grams and corresponding DF value at the f_obj
+    
+    description >
+        here , we use the binarized vector , so just recode the gram occurence at a doc , that is to say :
+        recorde the DF of every gram
+    '''
+    tokens_df_con = Counter()
+    for line in f_obj.xreadlines() :
+        tokens = tokenize(line , ngram)
+        tokens = list(set(tokens))
+        tokens_df_con.update(tokens)
+    return tokens_df_con
+
 def main(postrain , negtrain , ngram , out) :
-    ngram = int(ngram)
-    print postrain
-    print negtrain
-    print ngram
-    print out
+    
+    #print postrain
+    #print negtrain
+    #print ngram
+    #print out
     logging.info("counting")
-    logging.info("abstract features")
-    logging.info("compute log-count ratio")
-    logging.info("generate training data in libSVM format")
-    logging.info("generate model using libLinear")
-    logging.info("compute w and b")
-    logging.info("output model")
+    pos_con = counting(postrain , ngram)
+    neg_con = counting(negtrain , ngram)
+    print pos_con
+    print neg_con
+    #logging.info("abstract features")
+    #logging.info("compute log-count ratio")
+    #logging.info("generate training data in libSVM format")
+    #logging.info("generate model using libLinear")
+    #logging.info("compute w and b")
+    #logging.info("output model")
 
     postrain.close()
     negtrain.close()
