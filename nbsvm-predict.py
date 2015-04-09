@@ -52,16 +52,19 @@ def NBSVM_predict(X,w,b) :
     dimension = w.shape[0]
     w.shape = (dimension , 1) # transpose
     data_size = len(X)
-    X_m = np.zeros((data_size , dimension))
+    #X_m = np.zeros((data_size , dimension)) # TOO LARGE
+    Y_pre = np.zeros((data_size,1))
     i = 0
     for x in X :
+        x_m = np.zeros((1,dimension))
         for idx in x :
-            X_m[i,idx -1 ] = x[idx] # the idx is the the feature idx start from 1 , where matrix start from 0 . and x is a dict .
+            x_m[0,idx -1 ] = x[idx] # the idx is the the feature idx start from 1 , where matrix start from 0 . and x is a dict .
+        Y_pre[i,0] = np.dot(x_m,w) + b
         i += 1
     
     #predict function : y = sign(x*w + b )
     #here X_m 's shape is (data_size,dimension) , w is (dimension,1) , b will be broadcasting to (data_size,1) , result is matrix with shape (data_size , 1)
-    Y_pre = np.dot(X_m , w ) + b ; # mul is not the star *  but the numpy.dot !!
+    #Y_pre = np.dot(X_m , w ) + b ; # mul is not the star *  but the numpy.dot !!
     return np.sign(Y_pre)
 
 def evaluation_using_liblinear(ty,py) :
